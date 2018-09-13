@@ -1,0 +1,24 @@
+nano /etc/httpd/conf.d/football.gobluemich.com.conf
+
+<VirtualHost *:80>
+ServerAdmin webmaster@football.gobluemich.com
+DocumentRoot "/var/www/html/football.gobluemich/"
+ServerName football.gobluemich.com
+ServerAlias www.football.gobluemich.com
+ErrorLog "/var/log/httpd/football.gobluemich.com-error_log"
+CustomLog "/var/log/httpd/football.gobluemich.com-access_log" combined
+
+<Directory "/var/www/html/football.gobluemich/">
+DirectoryIndex index.html index.php
+Options FollowSymLinks
+AllowOverride All
+Require all granted
+</Directory>
+</VirtualHost>
+
+mkdir /var/www/html/football.gobluemich/
+
+#####
+https://www.liquidweb.com/kb/how-to-install-apache-on-centos-7/
+https://www.rosehosting.com/blog/apache-virtual-hosts-on-centos/
+#####

@@ -1,0 +1,93 @@
+---
+title: "Week 1"
+author:
+date: "`r format(Sys.Date(), '%m/%d/%Y')`"
+output:
+  prettydoc::html_pretty:
+    highlight: github
+---
+
+```{r FFL_chunk, echo=FALSE, include=FALSE, autodep = TRUE}
+#####Webscraping Weekly Matchup Data#####
+
+Tab_Scrape <- function(url, xPath) {
+  temp <- url %>%
+  read_html() %>%
+html_nodes(xpath=xPath) %>%
+  html_table(fill = TRUE)
+  temp[[1]]
+}
+
+week_num <- 1
+currYear <- substr(as.character(Sys.Date()), start = 1, stop = 4)
+
+setwd(paste0("C:\\Users\\", Sys.info()["user"], "\\Google Drive\\Other\\Fun\\FFL\\"))
+#setwd("/home/andrew/andrew.old/Gdrive_Backup/FFL")
+
+library(tidyverse)
+library(rvest)
+library(purrr)
+library(data.table)
+library(stringr)
+library(kableExtra)
+
+url <- paste0("http://games.espn.com/ffl/scoreboard?leagueId=212336&matchupPeriodId=", week_num, "&seasonId=", currYear)
+
+Text_Scrape <- function(url_str = url, nodes_str) {
+  url_str %>%
+  read_html() %>%
+  html_nodes(nodes_str) %>%
+  html_text()
+}
+
+gameResults <- Tab_Scrape("http://games.espn.com/ffl/schedule?leagueId=212336", '//*[contains(concat( " ", @class, " " ), concat( " ", "tableBody", " " ))]')
+
+gameResults <- gameResults[week_num*c(1:9), ]
+colnames(gameResults) = gameResults[2, ] %>% tolower() %>% gsub(pattern = " ", replacement = "") %>% gsub(pattern = ")", replacement = "") %>% gsub(pattern = "[(]", replacement = "")
+colnames(gameResults)[c(2, 5)] <- c("ownerAway", "ownerHome")
+gameResults <- gameResults[-c(1:2), ]
+gameResults <- gameResults[complete.cases(gameResults), ] %>% rename() %>% 
+  select(1:2, 4:6) %>% filter(hometeam != "") %>% mutate(awayScore = str_split(result, pattern = "-") %>% map(1) %>% as.numeric(), homeScore = str_split(result, pattern = "-") %>% map(2) %>% as.numeric(), margin = awayScore - homeScore)
+
+league_info <- Text_Scrape(nodes_str = "h1")
+
+projs <- Text_Scrape(url_str = "http://games.espn.com/ffl/gamelines?leagueId=212336", nodes_str = "td:nth-child(2) , td:nth-child(5)")[-c(1:2)] %>% as.numeric()
+
+League_Name <- str_split(string = league_info[2], pattern = " Scoreboard ")[[1]][1]
+Week <- str_split(string = league_info[2], pattern = " Scoreboard ")[[1]][2]
+Marg <- gameResults$margin
+Matchups <- paste(gameResults$awayteam, " vs ", gameResults$hometeam)
+Scores <- paste(gameResults$awayScore, " to ", gameResults$homeScore)
+
+Datf <- data.frame(Team = unlist(gameResults[, c("awayteam", "hometeam")]), 
+                   Score = unlist(gameResults[, c("awayScore", "homeScore")]), 
+                   Margin = unlist(c(gameResults[, c("margin")], -gameResults[, c("margin")])), stringsAsFactors = FALSE)
+rownames(Datf) <- NULL
+
+Datf$Projected_Score <- projs
+
+High_Scorer <- Datf[which(Datf$Score == max(Datf$Score)), "Team"]
+High_Scorer_Score <- Datf[which(Datf$Score == max(Datf$Score)), "Score"]
+Low_Scorer <- Datf[which(Datf$Score == min(Datf$Score)), "Team"]
+Low_Scorer_Score <- Datf[which(Datf$Score == min(Datf$Score)), "Score"]
+Largest_Win <- Datf[which(Datf$Margin == max(Datf$Margin)), "Team"]
+Largest_Win_Margin <- Datf[which(Datf$Margin == max(Datf$Margin)), "Margin"]
+Worst_Loss <- Datf[which(Datf$Margin == min(Datf$Margin)), "Team"]
+Worst_Loss_Margin <- Datf[which(Datf$Margin == min(Datf$Margin)), "Margin"]
+Luckiest_Team <- Datf[which((Datf$Score-Datf$Projected_Score) == max(Datf$Score-Datf$Projected_Score)), "Team"]
+Luckiest_Team_Proj <- Datf[which((Datf$Score-Datf$Projected_Score) == max(Datf$Score-Datf$Projected_Score)), "Projected_Score"]
+Luckiest_Team_Score <- Datf[which((Datf$Score-Datf$Projected_Score) == max(Datf$Score-Datf$Projected_Score)), "Score"]
+Unluckiest_Team <- Datf[which((Datf$Score-Datf$Projected_Score) == min(Datf$Score-Datf$Projected_Score)), "Team"]
+Unluckiest_Team_Proj <- Datf[which((Datf$Score-Datf$Projected_Score) == min(Datf$Score-Datf$Projected_Score)), "Projected_Score"]
+Unluckiest_Team_Score <- Datf[which((Datf$Score-Datf$Projected_Score) == min(Datf$Score-Datf$Projected_Score)), "Score"]
+```
+ 
+## `r paste0(Week, " Recap")`
+
+```{r, echo=FALSE, results='asis',  autodep = TRUE, warning = FALSE, message = FALSE}
+dt <- cbind(c(paste0("**Highest Scorer**: ", High_Scorer, "; ", High_Scorer_Score), paste0("**Largest Win**: ", Largest_Win, "; +", Largest_Win_Margin), paste0("**Luckiest SOB**: ", Luckiest_Team, "; ", Luckiest_Team_Score-Luckiest_Team_Proj, " over")),
+        c(paste0("**Lowest Scorer**: ", Low_Scorer, "; ", Low_Scorer_Score), paste0("**Worst Loss**: ", Worst_Loss, "; ", Worst_Loss_Margin), paste0("**Unluckiest SOB**: ", Unluckiest_Team, "; ", (-1)*(Unluckiest_Team_Score-Unluckiest_Team_Proj), " under")))
+
+knitr::kable(dt, format = "html", booktabs = T) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
